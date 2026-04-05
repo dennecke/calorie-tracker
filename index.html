@@ -5,11 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mein Kalorien Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Wir aktivieren die Dark-Mode Unterstützung für Tailwind
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-800">
+<body class="bg-gray-100 transition-colors duration-200">
 
     <div id="root"></div>
 
@@ -29,6 +35,23 @@
         };
 
         function App() {
+            // --- THEME STATE (Dark / Light Mode) ---
+            const [theme, setTheme] = React.useState(() => localStorage.getItem('theme') || 'light');
+
+            React.useEffect(() => {
+                // Tailwind Dark Mode Klasse anwenden
+                if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.body.classList.add('bg-gray-900');
+                    document.body.classList.remove('bg-gray-100');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.body.classList.remove('bg-gray-900');
+                    document.body.classList.add('bg-gray-100');
+                }
+                localStorage.setItem('theme', theme);
+            }, [theme]);
+
             // --- BASIS STATE ---
             const initialConfig = JSON.parse(localStorage.getItem('isConfigured')) || false;
             const [isConfigured, setIsConfigured] = React.useState(initialConfig);
@@ -43,6 +66,10 @@
             const [goal, setGoal] = React.useState(() => localStorage.getItem('goal') || 'lose');
             const [rate, setRate] = React.useState(() => localStorage.getItem('rate') || '0.5');
             const [calorieGoal, setCalorieGoal] = React.useState(() => JSON.parse(localStorage.getItem('calorieGoal')) || 0);
+
+            // --- EIGENE DATENBANK STATE ---
+            const [customDb, setCustomDb] = React.useState(() => JSON.parse(localStorage.getItem('customDb')) || []);
+            const [saveToDb, setSaveToDb] = React.useState(true); // Häkchen standardmäßig an
 
             // --- DATUM & HISTORIE STATE ---
             const [selectedDate, setSelectedDate] = React.useState(getTodayStr());
@@ -73,7 +100,8 @@
                 localStorage.setItem('rate', rate);
                 localStorage.setItem('calorieGoal', JSON.stringify(calorieGoal));
                 localStorage.setItem('foodHistory', JSON.stringify(history));
-            }, [isConfigured, gender, age, weight, height, activity, goal, rate, calorieGoal, history]);
+                localStorage.setItem('customDb', JSON.stringify(customDb));
+            }, [isConfigured, gender, age, weight, height, activity, goal, rate, calorieGoal, history, customDb]);
 
             // Bedarf berechnen
             const calculateNeeds = () => {
@@ -93,22 +121,36 @@
                 setCurrentView('tracker'); 
             };
 
-            // API Suche und Hinzufügen
+            // COMBINED SEARCH (Eigene Datenbank + API)
             const searchFood = async () => {
                 if (!searchTerm) return;
                 setIsLoading(true);
+
+                // 1. Zuerst in der eigenen lokalen Datenbank suchen
+                const localMatches = customDb
+                    .filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map(f => ({ ...f, isCustom: true })); // Markieren als eigenes Lebensmittel
+
                 try {
+                    // 2. Dann die API durchsuchen
                     const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${searchTerm}&search_simple=1&action=process&json=1&page_size=5`);
                     const data = await response.json();
-                    const formattedResults = data.products
+                    const apiResults = data.products
                         .filter(p => p.product_name && p.nutriments && p.nutriments['energy-kcal_100g'])
                         .map(p => ({
                             name: p.product_name,
                             brand: p.brands || 'Unbekannt',
-                            caloriesPer100: Math.round(p.nutriments['energy-kcal_100g'])
+                            caloriesPer100: Math.round(p.nutriments['energy-kcal_100g']),
+                            isCustom: false
                         }));
-                    setSearchResults(formattedResults);
-                } catch (error) { console.error(error); }
+                    
+                    // Beide Ergebnisse kombinieren (Eigene zuerst)
+                    setSearchResults([...localMatches, ...apiResults]);
+                } catch (error) { 
+                    console.error(error); 
+                    // Wenn kein Internet, zeige wenigstens die lokalen Ergebnisse
+                    setSearchResults(localMatches);
+                }
                 setIsLoading(false);
             };
 
@@ -130,7 +172,20 @@
 
             const addCustomFood = () => {
                 if(!customName || !customKcal || !customAmount) return alert("Bitte alle Felder ausfüllen!");
-                addFoodToDate({ name: customName, amount: parseFloat(customAmount), calories: Math.round((parseFloat(customKcal) / 100) * parseFloat(customAmount)) });
+                const kcal = parseFloat(customKcal);
+                const amount = parseFloat(customAmount);
+                
+                // In den Tracker aufnehmen
+                addFoodToDate({ name: customName, amount: amount, calories: Math.round((kcal / 100) * amount) });
+                
+                // In der eigenen Datenbank speichern (falls gewünscht und nicht schon vorhanden)
+                if (saveToDb) {
+                    const alreadyExists = customDb.some(f => f.name.toLowerCase() === customName.toLowerCase());
+                    if (!alreadyExists) {
+                        setCustomDb([...customDb, { name: customName, caloriesPer100: kcal }]);
+                    }
+                }
+
                 setCustomName(''); setCustomKcal(''); setCustomAmount(''); setShowCustomForm(false);
             };
 
@@ -140,7 +195,6 @@
                 setHistory(newHistory);
             };
 
-            // Datums-Wechsel sicher machen
             const handleDateChange = (e) => {
                 const chosenDate = e.target.value;
                 if (chosenDate > getTodayStr()) {
@@ -162,27 +216,32 @@
                 return new Date(selectedDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
             };
 
-            const displayHeadingText = () => {
-                if (selectedDate === getTodayStr()) return "Heute gegessen";
-                if (selectedDate === getYesterdayStr()) return "Gestern gegessen";
-                return `Am ${displayDateLabel()} gegessen`;
-            };
-
             // === UI: EINSTELLUNGEN ÜBERSICHT ===
             if (currentView === 'settings') {
                 return (
-                    <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg">
+                    <div class="max-w-md mx-auto bg-white dark:bg-gray-800 min-h-screen shadow-lg transition-colors duration-200 text-gray-800 dark:text-gray-100">
                         <div class="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md flex items-center gap-4">
                             <button onClick={() => setCurrentView('tracker')} class="text-3xl font-bold hover:text-gray-200 transition">&larr;</button>
                             <h1 class="text-2xl font-bold">Einstellungen</h1>
                         </div>
                         <div class="p-6 space-y-4">
-                            <button onClick={() => setCurrentView('profile')} class="w-full bg-gray-50 p-4 border border-gray-200 rounded-xl text-left font-semibold hover:bg-gray-100 transition flex justify-between items-center shadow-sm">
+                            
+                            {/* Profil Button */}
+                            <button onClick={() => setCurrentView('profile')} class="w-full bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600 rounded-xl text-left font-semibold hover:bg-gray-100 dark:hover:bg-gray-600 transition flex justify-between items-center shadow-sm">
                                 <span class="flex items-center gap-3"><span class="text-xl">👤</span> Profil & Ziele</span>
-                                <span class="text-gray-400">&rarr;</span>
+                                <span class="text-gray-400 dark:text-gray-300">&rarr;</span>
                             </button>
-                            <div class="w-full bg-gray-50 p-4 rounded-xl text-left text-gray-400 font-semibold border border-dashed border-gray-300 flex items-center gap-3">
-                                <span class="text-xl">⚙️</span> Weitere Features folgen...
+                            
+                            {/* Dark Mode Toggle */}
+                            <div class="w-full bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600 rounded-xl flex justify-between items-center shadow-sm">
+                                <span class="font-semibold flex items-center gap-3">
+                                    <span class="text-xl">{theme === 'dark' ? '🌙' : '☀️'}</span> 
+                                    Dark Mode
+                                </span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={theme === 'dark'} onChange={(e) => setTheme(e.target.checked ? 'dark' : 'light')} class="sr-only peer" />
+                                    <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-500"></div>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -192,38 +251,38 @@
             // === UI: PROFIL & ZIELE SCREEN ===
             if (currentView === 'profile') {
                 return (
-                    <div class="max-w-md mx-auto bg-white min-h-screen p-6 shadow-lg">
+                    <div class="max-w-md mx-auto bg-white dark:bg-gray-800 min-h-screen p-6 shadow-lg transition-colors duration-200 text-gray-800 dark:text-gray-100">
                         {isConfigured && (
-                            <button onClick={() => setCurrentView('settings')} class="mb-6 text-gray-500 hover:text-blue-600 font-bold flex items-center gap-2">
+                            <button onClick={() => setCurrentView('settings')} class="mb-6 text-gray-500 dark:text-gray-400 hover:text-blue-600 font-bold flex items-center gap-2">
                                 <span>&larr;</span> Zurück
                             </button>
                         )}
-                        <h1 class="text-2xl font-bold mb-2 text-blue-600">Dein Profil</h1>
-                        <p class="text-sm text-gray-500 mb-6">Wir berechnen deinen wissenschaftlich genauen Kalorienbedarf.</p>
+                        <h1 class="text-2xl font-bold mb-2 text-blue-600 dark:text-blue-400">Dein Profil</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Wir berechnen deinen wissenschaftlich genauen Kalorienbedarf.</p>
                         
                         <div class="space-y-4">
-                            <select value={gender} onChange={e => setGender(e.target.value)} class="w-full p-3 border rounded-lg">
+                            <select value={gender} onChange={e => setGender(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg">
                                 <option value="male">Männlich</option>
                                 <option value="female">Weiblich</option>
                             </select>
                             <div class="flex gap-2">
-                                <input type="number" placeholder="Alter (Jahre)" value={age} onChange={e => setAge(e.target.value)} class="w-full p-3 border rounded-lg" />
-                                <input type="number" placeholder="Gewicht (kg)" value={weight} onChange={e => setWeight(e.target.value)} class="w-full p-3 border rounded-lg" />
+                                <input type="number" placeholder="Alter (Jahre)" value={age} onChange={e => setAge(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
+                                <input type="number" placeholder="Gewicht (kg)" value={weight} onChange={e => setWeight(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
                             </div>
-                            <input type="number" placeholder="Größe (cm)" value={height} onChange={e => setHeight(e.target.value)} class="w-full p-3 border rounded-lg" />
-                            <select value={activity} onChange={e => setActivity(e.target.value)} class="w-full p-3 border rounded-lg">
+                            <input type="number" placeholder="Größe (cm)" value={height} onChange={e => setHeight(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
+                            <select value={activity} onChange={e => setActivity(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg">
                                 <option value="1.2">Bürojob / kaum Bewegung</option>
                                 <option value="1.375">Leicht aktiv (1-3x Sport/Woche)</option>
                                 <option value="1.55">Moderat aktiv (3-5x Sport/Woche)</option>
                                 <option value="1.725">Sehr aktiv (täglich Sport/körperl. Arbeit)</option>
                             </select>
-                            <select value={goal} onChange={e => setGoal(e.target.value)} class="w-full p-3 border rounded-lg">
+                            <select value={goal} onChange={e => setGoal(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg">
                                 <option value="lose">Abnehmen</option>
                                 <option value="maintain">Gewicht halten</option>
                                 <option value="gain">Zunehmen</option>
                             </select>
                             {goal !== 'maintain' && (
-                                <select value={rate} onChange={e => setRate(e.target.value)} class="w-full p-3 border rounded-lg">
+                                <select value={rate} onChange={e => setRate(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg">
                                     <option value="0.5">0,5 kg pro Woche</option>
                                     <option value="1.0">1,0 kg pro Woche (Intensiv)</option>
                                 </select>
@@ -238,59 +297,26 @@
 
             // === UI: TRACKER SCREEN ===
             return (
-                <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg pb-10">
+                <div class="max-w-md mx-auto bg-white dark:bg-gray-800 min-h-screen shadow-lg pb-10 transition-colors duration-200 text-gray-800 dark:text-gray-100">
                     <div class="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md">
                         <div class="flex justify-between items-center mb-6">
                             <h1 class="text-2xl font-bold">Mein Tracker</h1>
-                            
                             <div class="flex gap-2 items-stretch">
-                                {/* Schneller "Heute"-Button (nur sichtbar, wenn wir in der Vergangenheit sind) */}
                                 {selectedDate !== getTodayStr() && (
-                                    <button 
-                                        onClick={() => setSelectedDate(getTodayStr())}
-                                        class="bg-blue-500 px-3 py-2 rounded-lg text-sm font-semibold border border-white/30 hover:bg-blue-400 transition"
-                                    >
-                                        Heute
-                                    </button>
+                                    <button onClick={() => setSelectedDate(getTodayStr())} class="bg-blue-500 px-3 py-2 rounded-lg text-sm font-semibold border border-white/30 hover:bg-blue-400 transition">Heute</button>
                                 )}
-
-                                {/* Datumsauswahl */}
                                 <div class="relative bg-white/20 px-3 py-2 rounded-lg text-sm font-semibold flex items-center border border-white/30 hover:bg-white/30 transition cursor-pointer">
-                                    <label htmlFor="datePicker" class="cursor-pointer flex items-center gap-2 w-full h-full">
-                                        📅 {displayDateLabel()}
-                                    </label>
-                                    <input 
-                                        id="datePicker"
-                                        type="date" 
-                                        value={selectedDate}
-                                        onChange={handleDateChange}
-                                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                    />
+                                    <label htmlFor="datePicker" class="cursor-pointer flex items-center gap-2 w-full h-full">📅 {displayDateLabel()}</label>
+                                    <input id="datePicker" type="date" value={selectedDate} onChange={handleDateChange} class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                                 </div>
-                                
-                                {/* Zahnrad */}
-                                <button 
-                                    onClick={() => setCurrentView('settings')}
-                                    class="bg-white/20 px-3 py-2 rounded-lg text-lg border border-white/30 hover:bg-white/30 transition flex items-center justify-center"
-                                >
-                                    ⚙️
-                                </button>
+                                <button onClick={() => setCurrentView('settings')} class="bg-white/20 px-3 py-2 rounded-lg text-lg border border-white/30 hover:bg-white/30 transition flex items-center justify-center">⚙️</button>
                             </div>
                         </div>
                         
                         <div class="flex justify-between items-center bg-white/20 p-4 rounded-xl">
-                            <div class="text-center">
-                                <p class="text-sm opacity-80">Ziel</p>
-                                <p class="text-xl font-bold">{calorieGoal}</p>
-                            </div>
-                            <div class="text-center">
-                                <p class="text-sm opacity-80">Gegessen</p>
-                                <p class="text-xl font-bold">{totalConsumed}</p>
-                            </div>
-                            <div class="text-center">
-                                <p class="text-sm opacity-80">Übrig</p>
-                                <p class="text-xl font-bold">{remainingCalories}</p>
-                            </div>
+                            <div class="text-center"><p class="text-sm opacity-80">Ziel</p><p class="text-xl font-bold">{calorieGoal}</p></div>
+                            <div class="text-center"><p class="text-sm opacity-80">Gegessen</p><p class="text-xl font-bold">{totalConsumed}</p></div>
+                            <div class="text-center"><p class="text-sm opacity-80">Übrig</p><p class="text-xl font-bold">{remainingCalories}</p></div>
                         </div>
                     </div>
 
@@ -299,20 +325,26 @@
                         <div class="mb-4">
                             <h2 class="text-lg font-bold mb-2">Mahlzeit hinzufügen</h2>
                             <div class="flex gap-2">
-                                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Datenbank durchsuchen..." class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" onKeyDown={e => e.key === 'Enter' && searchFood()} />
+                                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Suchen (Eigene + Datenbank)..." class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:outline-none focus:border-blue-500" onKeyDown={e => e.key === 'Enter' && searchFood()} />
                                 <button onClick={searchFood} class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition">Suchen</button>
                             </div>
                         </div>
 
+                        {isLoading && <p class="text-center text-gray-500 dark:text-gray-400 my-4">Suche läuft...</p>}
+                        
                         {/* SUCHGEBNISSE */}
-                        {isLoading && <p class="text-center text-gray-500 my-4">Suche läuft...</p>}
                         {searchResults.length > 0 && (
-                            <div class="mb-6 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                            <div class="mb-6 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
                                 {searchResults.map((food, index) => (
-                                    <div key={index} class="flex justify-between items-center p-3 bg-gray-50 border-b last:border-b-0">
+                                    <div key={index} class="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 last:border-b-0">
                                         <div>
-                                            <p class="font-bold">{food.name}</p>
-                                            <p class="text-sm text-gray-500">{food.brand} • {food.caloriesPer100} kcal / 100g</p>
+                                            <p class="font-bold flex items-center gap-2">
+                                                {food.name} 
+                                                {food.isCustom && <span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">⭐ Eigenes</span>}
+                                            </p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                {food.isCustom ? 'Manuell hinzugefügt' : food.brand} • {food.caloriesPer100} kcal / 100g
+                                            </p>
                                         </div>
                                         <button onClick={() => addApiFood(food)} class="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-green-600">+</button>
                                     </div>
@@ -323,22 +355,28 @@
                         {/* MANUELLE EINGABE */}
                         <div class="mb-8">
                             {!showCustomForm ? (
-                                <button onClick={() => setShowCustomForm(true)} class="text-blue-600 text-sm font-semibold hover:underline">
-                                    + Produkt nicht gefunden? Manuell eintragen
+                                <button onClick={() => setShowCustomForm(true)} class="text-blue-600 dark:text-blue-400 text-sm font-semibold hover:underline">
+                                    + Produkt fehlt? Manuell eintragen
                                 </button>
                             ) : (
-                                <div class="bg-gray-50 p-4 rounded-lg border shadow-inner">
-                                    <h3 class="font-bold mb-3 text-gray-700">Eigenes Produkt</h3>
+                                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600 shadow-inner">
+                                    <h3 class="font-bold mb-3 text-gray-700 dark:text-gray-200">Neues Lebensmittel</h3>
                                     <div class="space-y-2 mb-3">
-                                        <input type="text" placeholder="Name des Essens" value={customName} onChange={e => setCustomName(e.target.value)} class="w-full p-2 border rounded" />
+                                        <input type="text" placeholder="Name (z.B. Basmatireis gekocht)" value={customName} onChange={e => setCustomName(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
                                         <div class="flex gap-2">
-                                            <input type="number" placeholder="Kcal pro 100g" value={customKcal} onChange={e => setCustomKcal(e.target.value)} class="w-full p-2 border rounded" />
-                                            <input type="number" placeholder="Menge in g" value={customAmount} onChange={e => setCustomAmount(e.target.value)} class="w-full p-2 border rounded" />
+                                            <input type="number" placeholder="Kcal pro 100g" value={customKcal} onChange={e => setCustomKcal(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
+                                            <input type="number" placeholder="Menge in g" value={customAmount} onChange={e => setCustomAmount(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
                                         </div>
+                                        
+                                        {/* Checkbox zum Speichern in der DB */}
+                                        <label class="flex items-center gap-2 mt-2 cursor-pointer text-sm text-gray-600 dark:text-gray-300">
+                                            <input type="checkbox" checked={saveToDb} onChange={e => setSaveToDb(e.target.checked)} class="w-4 h-4 rounded text-blue-600" />
+                                            Für zukünftige Suchen in eigener Datenbank merken
+                                        </label>
                                     </div>
-                                    <div class="flex gap-2">
+                                    <div class="flex gap-2 mt-4">
                                         <button onClick={addCustomFood} class="flex-1 bg-green-500 text-white font-bold py-2 rounded hover:bg-green-600">Speichern</button>
-                                        <button onClick={() => setShowCustomForm(false)} class="flex-1 bg-gray-300 text-gray-700 font-bold py-2 rounded hover:bg-gray-400">Abbrechen</button>
+                                        <button onClick={() => setShowCustomForm(false)} class="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-2 rounded hover:bg-gray-400 dark:hover:bg-gray-500">Abbrechen</button>
                                     </div>
                                 </div>
                             )}
@@ -346,22 +384,24 @@
 
                         {/* LISTE GEGESSENER DINGE */}
                         <div>
-                            <div class="flex justify-between items-center border-b pb-2 mb-3">
-                                <h2 class="text-lg font-bold">{displayHeadingText()}</h2>
+                            <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
+                                <h2 class="text-lg font-bold">
+                                    {selectedDate === getTodayStr() ? "Heute gegessen" : selectedDate === getYesterdayStr() ? "Gestern gegessen" : `Am ${displayDateLabel()} gegessen`}
+                                </h2>
                             </div>
                             
                             {currentDayFoods.length === 0 ? (
-                                <p class="text-gray-500 text-center py-4">Noch nichts getrackt.</p>
+                                <p class="text-gray-500 dark:text-gray-400 text-center py-4">Noch nichts getrackt.</p>
                             ) : (
                                 <ul>
                                     {currentDayFoods.map((food, index) => (
-                                        <li key={index} class="flex justify-between items-center py-3 border-b border-gray-100">
+                                        <li key={index} class="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
                                             <div>
                                                 <p class="font-semibold">{food.name}</p>
-                                                <p class="text-xs text-gray-500">{food.amount}g</p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">{food.amount}g</p>
                                             </div>
                                             <div class="flex items-center gap-4">
-                                                <span class="font-bold text-red-500">{food.calories} kcal</span>
+                                                <span class="font-bold text-red-500 dark:text-red-400">{food.calories} kcal</span>
                                                 <button onClick={() => removeFoodFromDate(index)} class="text-gray-400 hover:text-red-500 text-xl font-bold">&times;</button>
                                             </div>
                                         </li>
