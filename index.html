@@ -1,25 +1,139 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mein Kalorien Tracker</title>
+    <title>Calorie Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
-            darkMode: 'class',
-        }
+        tailwind.config = { darkMode: 'class' }
     </script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-gray-100 transition-colors duration-200">
-
     <div id="root"></div>
-
     <script type="text/babel">
-        // Hilfsfunktionen für das Datum
+        const translations = {
+            en: {
+                profileTitle: "Your Profile",
+                profileDesc: "We calculate your scientifically accurate calorie needs.",
+                male: "Male",
+                female: "Female",
+                agePlace: "Age (years)",
+                weightPlace: "Weight (kg)",
+                heightPlace: "Height (cm)",
+                act1: "Desk job / little movement",
+                act2: "Lightly active (1-3x sports/week)",
+                act3: "Moderately active (3-5x sports/week)",
+                act4: "Very active (daily sports/physical work)",
+                goalLose: "Lose weight",
+                goalMaintain: "Maintain weight",
+                goalGain: "Gain weight",
+                rate05: "0.5 kg per week",
+                rate10: "1.0 kg per week (Intense)",
+                calcSave: "Calculate & Save",
+                back: "Back",
+                settings: "Settings",
+                profGoals: "Profile & Goals",
+                customFoods: "Custom Foods",
+                darkMode: "Dark Mode",
+                language: "Language",
+                customDbTitle: "Custom Foods",
+                customDbDesc: "Manage your manually added entries here.",
+                customDbEmpty: "You haven't saved any custom foods yet.",
+                trackerTitle: "My Tracker",
+                today: "Today",
+                yesterday: "Yesterday",
+                goal: "Goal",
+                eaten: "Eaten",
+                remaining: "Remaining",
+                addMeal: "Add Meal",
+                searchPlace: "Search...",
+                searchBtn: "Search",
+                searching: "Searching...",
+                customBadge: "⭐ Custom",
+                customSub: "Manually added",
+                addManual: "+ Product missing? Add manually",
+                newFoodTitle: "New Food",
+                namePlace: "Name (e.g., Cooked basmati rice)",
+                kcalPlace: "Kcal per 100g",
+                amountPlace: "Amount in g",
+                saveToDbCheck: "Save for future searches in custom database",
+                save: "Save",
+                cancel: "Cancel",
+                eatenToday: "Eaten today",
+                eatenYesterday: "Eaten yesterday",
+                eatenOn: "Eaten on",
+                nothingTracked: "Nothing tracked yet.",
+                alertFill: "Please fill in all fields!",
+                alertFuture: "You cannot track in the future!",
+                promptGram: "How many grams of",
+                promptGram2: "did you eat?",
+                alertValidNum: "Please enter a valid number!",
+                confirmDelete: "Do you really want to delete this food from your database?"
+            },
+            de: {
+                profileTitle: "Dein Profil",
+                profileDesc: "Wir berechnen deinen wissenschaftlich genauen Kalorienbedarf.",
+                male: "Männlich",
+                female: "Weiblich",
+                agePlace: "Alter (Jahre)",
+                weightPlace: "Gewicht (kg)",
+                heightPlace: "Größe (cm)",
+                act1: "Bürojob / kaum Bewegung",
+                act2: "Leicht aktiv (1-3x Sport/Woche)",
+                act3: "Moderat aktiv (3-5x Sport/Woche)",
+                act4: "Sehr aktiv (täglich Sport/körperl. Arbeit)",
+                goalLose: "Abnehmen",
+                goalMaintain: "Gewicht halten",
+                goalGain: "Zunehmen",
+                rate05: "0,5 kg pro Woche",
+                rate10: "1,0 kg pro Woche (Intensiv)",
+                calcSave: "Bedarf berechnen & Speichern",
+                back: "Zurück",
+                settings: "Einstellungen",
+                profGoals: "Profil & Ziele",
+                customFoods: "Eigene Lebensmittel",
+                darkMode: "Dark Mode",
+                language: "Sprache",
+                customDbTitle: "Eigene Lebensmittel",
+                customDbDesc: "Hier verwaltest du deine manuell hinzugefügten Einträge.",
+                customDbEmpty: "Du hast noch keine eigenen Lebensmittel gespeichert.",
+                trackerTitle: "Mein Tracker",
+                today: "Heute",
+                yesterday: "Gestern",
+                goal: "Ziel",
+                eaten: "Gegessen",
+                remaining: "Übrig",
+                addMeal: "Mahlzeit hinzufügen",
+                searchPlace: "Suchen...",
+                searchBtn: "Suchen",
+                searching: "Suche läuft...",
+                customBadge: "⭐ Eigenes",
+                customSub: "Manuell hinzugefügt",
+                addManual: "+ Produkt fehlt? Manuell eintragen",
+                newFoodTitle: "Neues Lebensmittel",
+                namePlace: "Name (z.B. Basmatireis gekocht)",
+                kcalPlace: "Kcal pro 100g",
+                amountPlace: "Menge in g",
+                saveToDbCheck: "Für zukünftige Suchen in eigener Datenbank merken",
+                save: "Speichern",
+                cancel: "Abbrechen",
+                eatenToday: "Heute gegessen",
+                eatenYesterday: "Gestern gegessen",
+                eatenOn: "Am",
+                nothingTracked: "Noch nichts getrackt.",
+                alertFill: "Bitte alle Felder ausfüllen!",
+                alertFuture: "Du kannst nicht in der Zukunft tracken!",
+                promptGram: "Wie viel Gramm von",
+                promptGram2: "hast du gegessen?",
+                alertValidNum: "Bitte eine gültige Zahl eingeben!",
+                confirmDelete: "Möchtest du dieses Lebensmittel wirklich aus deiner Datenbank löschen?"
+            }
+        };
+
         const getTodayStr = () => {
             const now = new Date();
             const offset = now.getTimezoneOffset() * 60000;
@@ -34,8 +148,10 @@
         };
 
         function App() {
-            // --- THEME STATE ---
             const [theme, setTheme] = React.useState(() => localStorage.getItem('theme') || 'light');
+            const [lang, setLang] = React.useState(() => localStorage.getItem('language') || 'en');
+            
+            const t = (key) => translations[lang][key];
 
             React.useEffect(() => {
                 if (theme === 'dark') {
@@ -48,15 +164,14 @@
                     document.body.classList.add('bg-gray-100');
                 }
                 localStorage.setItem('theme', theme);
-            }, [theme]);
+                localStorage.setItem('language', lang);
+                document.documentElement.lang = lang;
+            }, [theme, lang]);
 
-            // --- BASIS STATE ---
             const initialConfig = JSON.parse(localStorage.getItem('isConfigured')) || false;
             const [isConfigured, setIsConfigured] = React.useState(initialConfig);
-            // Neue Ansicht 'custom_db' hinzugefügt
             const [currentView, setCurrentView] = React.useState(initialConfig ? 'tracker' : 'profile');
 
-            // --- EINSTELLUNGEN STATE ---
             const [gender, setGender] = React.useState(() => localStorage.getItem('gender') || 'male');
             const [age, setAge] = React.useState(() => localStorage.getItem('age') || '');
             const [weight, setWeight] = React.useState(() => localStorage.getItem('weight') || '');
@@ -66,11 +181,9 @@
             const [rate, setRate] = React.useState(() => localStorage.getItem('rate') || '0.5');
             const [calorieGoal, setCalorieGoal] = React.useState(() => JSON.parse(localStorage.getItem('calorieGoal')) || 0);
 
-            // --- EIGENE DATENBANK STATE ---
             const [customDb, setCustomDb] = React.useState(() => JSON.parse(localStorage.getItem('customDb')) || []);
             const [saveToDb, setSaveToDb] = React.useState(true);
 
-            // --- DATUM & HISTORIE STATE ---
             const [selectedDate, setSelectedDate] = React.useState(getTodayStr());
             const [history, setHistory] = React.useState(() => {
                 const saved = localStorage.getItem('foodHistory');
@@ -78,7 +191,6 @@
                 return {};
             });
 
-            // --- TEMPORÄRE STATES ---
             const [searchTerm, setSearchTerm] = React.useState('');
             const [searchResults, setSearchResults] = React.useState([]);
             const [isLoading, setIsLoading] = React.useState(false);
@@ -87,7 +199,6 @@
             const [customKcal, setCustomKcal] = React.useState('');
             const [customAmount, setCustomAmount] = React.useState('');
 
-            // --- AUTOMATISCHES SPEICHERN ---
             React.useEffect(() => {
                 localStorage.setItem('isConfigured', JSON.stringify(isConfigured));
                 localStorage.setItem('gender', gender);
@@ -102,9 +213,8 @@
                 localStorage.setItem('customDb', JSON.stringify(customDb));
             }, [isConfigured, gender, age, weight, height, activity, goal, rate, calorieGoal, history, customDb]);
 
-            // Bedarf berechnen
             const calculateNeeds = () => {
-                if(!age || !weight || !height) return alert("Bitte Alter, Gewicht und Größe ausfüllen!");
+                if(!age || !weight || !height) return alert(t('alertFill'));
                 let bmr = (10 * parseFloat(weight)) + (6.25 * parseFloat(height)) - (5 * parseInt(age));
                 bmr = gender === 'male' ? bmr + 5 : bmr - 161;
                 let tdee = bmr * parseFloat(activity);
@@ -120,7 +230,6 @@
                 setCurrentView('tracker'); 
             };
 
-            // COMBINED SEARCH
             const searchFood = async () => {
                 if (!searchTerm) return;
                 setIsLoading(true);
@@ -143,7 +252,6 @@
                     
                     setSearchResults([...localMatches, ...apiResults]);
                 } catch (error) { 
-                    console.error(error); 
                     setSearchResults(localMatches);
                 }
                 setIsLoading(false);
@@ -157,16 +265,16 @@
             };
 
             const addApiFood = (food) => {
-                const amountStr = window.prompt(`Wie viel Gramm von "${food.name}" hast du gegessen?`, "100");
+                const amountStr = window.prompt(`${t('promptGram')} "${food.name}" ${t('promptGram2')}`, "100");
                 if (amountStr === null) return; 
                 const amount = parseFloat(amountStr);
-                if (isNaN(amount) || amount <= 0) return alert("Bitte eine gültige Zahl eingeben!");
+                if (isNaN(amount) || amount <= 0) return alert(t('alertValidNum'));
                 addFoodToDate({ name: food.name, amount: amount, calories: Math.round((food.caloriesPer100 / 100) * amount) });
                 setSearchResults([]); setSearchTerm('');    
             };
 
             const addCustomFood = () => {
-                if(!customName || !customKcal || !customAmount) return alert("Bitte alle Felder ausfüllen!");
+                if(!customName || !customKcal || !customAmount) return alert(t('alertFill'));
                 const kcal = parseFloat(customKcal);
                 const amount = parseFloat(customAmount);
                 
@@ -188,9 +296,8 @@
                 setHistory(newHistory);
             };
 
-            // Eigene Datenbank: Eintrag löschen
             const deleteCustomDbItem = (indexToRemove) => {
-                if(window.confirm("Möchtest du dieses Lebensmittel wirklich aus deiner Datenbank löschen?")) {
+                if(window.confirm(t('confirmDelete'))) {
                     const newDb = customDb.filter((_, index) => index !== indexToRemove);
                     setCustomDb(newDb);
                 }
@@ -199,75 +306,80 @@
             const handleDateChange = (e) => {
                 const chosenDate = e.target.value;
                 if (chosenDate > getTodayStr()) {
-                    alert("Du kannst nicht in der Zukunft tracken!");
+                    alert(t('alertFuture'));
                     setSelectedDate(getTodayStr());
                 } else {
                     setSelectedDate(chosenDate);
                 }
             };
 
-            // Text-Formatierungen
             const currentDayFoods = history[selectedDate] || [];
             const totalConsumed = currentDayFoods.reduce((sum, food) => sum + food.calories, 0);
             const remainingCalories = calorieGoal - totalConsumed;
 
             const displayDateLabel = () => {
-                if (selectedDate === getTodayStr()) return "Heute";
-                if (selectedDate === getYesterdayStr()) return "Gestern";
-                return new Date(selectedDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                if (selectedDate === getTodayStr()) return t('today');
+                if (selectedDate === getYesterdayStr()) return t('yesterday');
+                return new Date(selectedDate).toLocaleDateString(lang === 'en' ? 'en-US' : 'de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
             };
 
-            // === UI: EINSTELLUNGEN ÜBERSICHT ===
             if (currentView === 'settings') {
                 return (
                     <div class="max-w-md mx-auto bg-white dark:bg-gray-800 min-h-screen shadow-lg transition-colors duration-200 text-gray-800 dark:text-gray-100">
                         <div class="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md flex items-center gap-4">
                             <button onClick={() => setCurrentView('tracker')} class="text-3xl font-bold hover:text-gray-200 transition">&larr;</button>
-                            <h1 class="text-2xl font-bold">Einstellungen</h1>
+                            <h1 class="text-2xl font-bold">{t('settings')}</h1>
                         </div>
                         <div class="p-6 space-y-4">
                             
-                            {/* Profil Button */}
                             <button onClick={() => setCurrentView('profile')} class="w-full bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600 rounded-xl text-left font-semibold hover:bg-gray-100 dark:hover:bg-gray-600 transition flex justify-between items-center shadow-sm">
-                                <span class="flex items-center gap-3"><span class="text-xl">👤</span> Profil & Ziele</span>
+                                <span class="flex items-center gap-3"><span class="text-xl">👤</span> {t('profGoals')}</span>
                                 <span class="text-gray-400 dark:text-gray-300">&rarr;</span>
                             </button>
 
-                            {/* Eigene Datenbank Button */}
                             <button onClick={() => setCurrentView('custom_db')} class="w-full bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600 rounded-xl text-left font-semibold hover:bg-gray-100 dark:hover:bg-gray-600 transition flex justify-between items-center shadow-sm">
-                                <span class="flex items-center gap-3"><span class="text-xl">⭐</span> Eigene Lebensmittel</span>
+                                <span class="flex items-center gap-3"><span class="text-xl">⭐</span> {t('customFoods')}</span>
                                 <span class="text-gray-400 dark:text-gray-300">&rarr;</span>
                             </button>
                             
-                            {/* Dark Mode Toggle */}
                             <div class="w-full bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600 rounded-xl flex justify-between items-center shadow-sm">
                                 <span class="font-semibold flex items-center gap-3">
                                     <span class="text-xl">{theme === 'dark' ? '🌙' : '☀️'}</span> 
-                                    Dark Mode
+                                    {t('darkMode')}
                                 </span>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" checked={theme === 'dark'} onChange={(e) => setTheme(e.target.checked ? 'dark' : 'light')} class="sr-only peer" />
                                     <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-500"></div>
                                 </label>
                             </div>
+
+                            <div class="w-full bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600 rounded-xl flex justify-between items-center shadow-sm">
+                                <span class="font-semibold flex items-center gap-3">
+                                    <span class="text-xl">🌍</span> 
+                                    {t('language')}
+                                </span>
+                                <select value={lang} onChange={(e) => setLang(e.target.value)} class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 outline-none">
+                                    <option value="en">English</option>
+                                    <option value="de">Deutsch</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 );
             }
 
-            // === UI: EIGENE DATENBANK VERWALTEN ===
             if (currentView === 'custom_db') {
                 return (
                     <div class="max-w-md mx-auto bg-white dark:bg-gray-800 min-h-screen p-6 shadow-lg transition-colors duration-200 text-gray-800 dark:text-gray-100">
                         <button onClick={() => setCurrentView('settings')} class="mb-6 text-gray-500 dark:text-gray-400 hover:text-blue-600 font-bold flex items-center gap-2">
-                            <span>&larr;</span> Zurück
+                            <span>&larr;</span> {t('back')}
                         </button>
-                        <h1 class="text-2xl font-bold mb-2 text-blue-600 dark:text-blue-400">Eigene Lebensmittel</h1>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Hier verwaltest du deine manuell hinzugefügten Einträge für die schnelle Suche.</p>
+                        <h1 class="text-2xl font-bold mb-2 text-blue-600 dark:text-blue-400">{t('customDbTitle')}</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">{t('customDbDesc')}</p>
 
                         {customDb.length === 0 ? (
                             <p class="text-center text-gray-500 dark:text-gray-400 py-10 bg-gray-50 dark:bg-gray-700 rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
-                                Du hast noch keine eigenen Lebensmittel gespeichert.
+                                {t('customDbEmpty')}
                             </p>
                         ) : (
                             <div class="space-y-3">
@@ -286,62 +398,60 @@
                 );
             }
 
-            // === UI: PROFIL & ZIELE SCREEN ===
             if (currentView === 'profile') {
                 return (
                     <div class="max-w-md mx-auto bg-white dark:bg-gray-800 min-h-screen p-6 shadow-lg transition-colors duration-200 text-gray-800 dark:text-gray-100">
                         {isConfigured && (
                             <button onClick={() => setCurrentView('settings')} class="mb-6 text-gray-500 dark:text-gray-400 hover:text-blue-600 font-bold flex items-center gap-2">
-                                <span>&larr;</span> Zurück
+                                <span>&larr;</span> {t('back')}
                             </button>
                         )}
-                        <h1 class="text-2xl font-bold mb-2 text-blue-600 dark:text-blue-400">Dein Profil</h1>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Wir berechnen deinen wissenschaftlich genauen Kalorienbedarf.</p>
+                        <h1 class="text-2xl font-bold mb-2 text-blue-600 dark:text-blue-400">{t('profileTitle')}</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">{t('profileDesc')}</p>
                         
                         <div class="space-y-4">
                             <select value={gender} onChange={e => setGender(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg">
-                                <option value="male">Männlich</option>
-                                <option value="female">Weiblich</option>
+                                <option value="male">{t('male')}</option>
+                                <option value="female">{t('female')}</option>
                             </select>
                             <div class="flex gap-2">
-                                <input type="number" placeholder="Alter (Jahre)" value={age} onChange={e => setAge(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
-                                <input type="number" placeholder="Gewicht (kg)" value={weight} onChange={e => setWeight(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
+                                <input type="number" placeholder={t('agePlace')} value={age} onChange={e => setAge(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
+                                <input type="number" placeholder={t('weightPlace')} value={weight} onChange={e => setWeight(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
                             </div>
-                            <input type="number" placeholder="Größe (cm)" value={height} onChange={e => setHeight(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
+                            <input type="number" placeholder={t('heightPlace')} value={height} onChange={e => setHeight(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg" />
                             <select value={activity} onChange={e => setActivity(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg">
-                                <option value="1.2">Bürojob / kaum Bewegung</option>
-                                <option value="1.375">Leicht aktiv (1-3x Sport/Woche)</option>
-                                <option value="1.55">Moderat aktiv (3-5x Sport/Woche)</option>
-                                <option value="1.725">Sehr aktiv (täglich Sport/körperl. Arbeit)</option>
+                                <option value="1.2">{t('act1')}</option>
+                                <option value="1.375">{t('act2')}</option>
+                                <option value="1.55">{t('act3')}</option>
+                                <option value="1.725">{t('act4')}</option>
                             </select>
                             <select value={goal} onChange={e => setGoal(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg">
-                                <option value="lose">Abnehmen</option>
-                                <option value="maintain">Gewicht halten</option>
-                                <option value="gain">Zunehmen</option>
+                                <option value="lose">{t('goalLose')}</option>
+                                <option value="maintain">{t('goalMaintain')}</option>
+                                <option value="gain">{t('goalGain')}</option>
                             </select>
                             {goal !== 'maintain' && (
                                 <select value={rate} onChange={e => setRate(e.target.value)} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg">
-                                    <option value="0.5">0,5 kg pro Woche</option>
-                                    <option value="1.0">1,0 kg pro Woche (Intensiv)</option>
+                                    <option value="0.5">{t('rate05')}</option>
+                                    <option value="1.0">{t('rate10')}</option>
                                 </select>
                             )}
                             <button onClick={calculateNeeds} class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition mt-4">
-                                Bedarf berechnen & Speichern
+                                {t('calcSave')}
                             </button>
                         </div>
                     </div>
                 );
             }
 
-            // === UI: TRACKER SCREEN ===
             return (
                 <div class="max-w-md mx-auto bg-white dark:bg-gray-800 min-h-screen shadow-lg pb-10 transition-colors duration-200 text-gray-800 dark:text-gray-100">
                     <div class="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md">
                         <div class="flex justify-between items-center mb-6">
-                            <h1 class="text-2xl font-bold">Mein Tracker</h1>
+                            <h1 class="text-2xl font-bold">{t('trackerTitle')}</h1>
                             <div class="flex gap-2 items-stretch">
                                 {selectedDate !== getTodayStr() && (
-                                    <button onClick={() => setSelectedDate(getTodayStr())} class="bg-blue-500 px-3 py-2 rounded-lg text-sm font-semibold border border-white/30 hover:bg-blue-400 transition">Heute</button>
+                                    <button onClick={() => setSelectedDate(getTodayStr())} class="bg-blue-500 px-3 py-2 rounded-lg text-sm font-semibold border border-white/30 hover:bg-blue-400 transition">{t('today')}</button>
                                 )}
                                 <div class="relative bg-white/20 px-3 py-2 rounded-lg text-sm font-semibold flex items-center border border-white/30 hover:bg-white/30 transition cursor-pointer">
                                     <label htmlFor="datePicker" class="cursor-pointer flex items-center gap-2 w-full h-full">📅 {displayDateLabel()}</label>
@@ -352,25 +462,23 @@
                         </div>
                         
                         <div class="flex justify-between items-center bg-white/20 p-4 rounded-xl">
-                            <div class="text-center"><p class="text-sm opacity-80">Ziel</p><p class="text-xl font-bold">{calorieGoal}</p></div>
-                            <div class="text-center"><p class="text-sm opacity-80">Gegessen</p><p class="text-xl font-bold">{totalConsumed}</p></div>
-                            <div class="text-center"><p class="text-sm opacity-80">Übrig</p><p class="text-xl font-bold">{remainingCalories}</p></div>
+                            <div class="text-center"><p class="text-sm opacity-80">{t('goal')}</p><p class="text-xl font-bold">{calorieGoal}</p></div>
+                            <div class="text-center"><p class="text-sm opacity-80">{t('eaten')}</p><p class="text-xl font-bold">{totalConsumed}</p></div>
+                            <div class="text-center"><p class="text-sm opacity-80">{t('remaining')}</p><p class="text-xl font-bold">{remainingCalories}</p></div>
                         </div>
                     </div>
 
                     <div class="p-6">
-                        {/* SUCHE */}
                         <div class="mb-4">
-                            <h2 class="text-lg font-bold mb-2">Mahlzeit hinzufügen</h2>
+                            <h2 class="text-lg font-bold mb-2">{t('addMeal')}</h2>
                             <div class="flex gap-2">
-                                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Suchen (Eigene + Datenbank)..." class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:outline-none focus:border-blue-500" onKeyDown={e => e.key === 'Enter' && searchFood()} />
-                                <button onClick={searchFood} class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition">Suchen</button>
+                                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={t('searchPlace')} class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:outline-none focus:border-blue-500" onKeyDown={e => e.key === 'Enter' && searchFood()} />
+                                <button onClick={searchFood} class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition">{t('searchBtn')}</button>
                             </div>
                         </div>
 
-                        {isLoading && <p class="text-center text-gray-500 dark:text-gray-400 my-4">Suche läuft...</p>}
+                        {isLoading && <p class="text-center text-gray-500 dark:text-gray-400 my-4">{t('searching')}</p>}
                         
-                        {/* SUCHGEBNISSE */}
                         {searchResults.length > 0 && (
                             <div class="mb-6 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
                                 {searchResults.map((food, index) => (
@@ -378,10 +486,10 @@
                                         <div>
                                             <p class="font-bold flex items-center gap-2">
                                                 {food.name} 
-                                                {food.isCustom && <span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">⭐ Eigenes</span>}
+                                                {food.isCustom && <span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{t('customBadge')}</span>}
                                             </p>
                                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                                {food.isCustom ? 'Manuell hinzugefügt' : food.brand} • {food.caloriesPer100} kcal / 100g
+                                                {food.isCustom ? t('customSub') : food.brand} • {food.caloriesPer100} kcal / 100g
                                             </p>
                                         </div>
                                         <button onClick={() => addApiFood(food)} class="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-green-600">+</button>
@@ -390,45 +498,43 @@
                             </div>
                         )}
 
-                        {/* MANUELLE EINGABE */}
                         <div class="mb-8">
                             {!showCustomForm ? (
                                 <button onClick={() => setShowCustomForm(true)} class="text-blue-600 dark:text-blue-400 text-sm font-semibold hover:underline">
-                                    + Produkt fehlt? Manuell eintragen
+                                    {t('addManual')}
                                 </button>
                             ) : (
                                 <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600 shadow-inner">
-                                    <h3 class="font-bold mb-3 text-gray-700 dark:text-gray-200">Neues Lebensmittel</h3>
+                                    <h3 class="font-bold mb-3 text-gray-700 dark:text-gray-200">{t('newFoodTitle')}</h3>
                                     <div class="space-y-2 mb-3">
-                                        <input type="text" placeholder="Name (z.B. Basmatireis gekocht)" value={customName} onChange={e => setCustomName(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
+                                        <input type="text" placeholder={t('namePlace')} value={customName} onChange={e => setCustomName(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
                                         <div class="flex gap-2">
-                                            <input type="number" placeholder="Kcal pro 100g" value={customKcal} onChange={e => setCustomKcal(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
-                                            <input type="number" placeholder="Menge in g" value={customAmount} onChange={e => setCustomAmount(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
+                                            <input type="number" placeholder={t('kcalPlace')} value={customKcal} onChange={e => setCustomKcal(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
+                                            <input type="number" placeholder={t('amountPlace')} value={customAmount} onChange={e => setCustomAmount(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
                                         </div>
                                         
                                         <label class="flex items-center gap-2 mt-2 cursor-pointer text-sm text-gray-600 dark:text-gray-300">
                                             <input type="checkbox" checked={saveToDb} onChange={e => setSaveToDb(e.target.checked)} class="w-4 h-4 rounded text-blue-600" />
-                                            Für zukünftige Suchen in eigener Datenbank merken
+                                            {t('saveToDbCheck')}
                                         </label>
                                     </div>
                                     <div class="flex gap-2 mt-4">
-                                        <button onClick={addCustomFood} class="flex-1 bg-green-500 text-white font-bold py-2 rounded hover:bg-green-600">Speichern</button>
-                                        <button onClick={() => setShowCustomForm(false)} class="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-2 rounded hover:bg-gray-400 dark:hover:bg-gray-500">Abbrechen</button>
+                                        <button onClick={addCustomFood} class="flex-1 bg-green-500 text-white font-bold py-2 rounded hover:bg-green-600">{t('save')}</button>
+                                        <button onClick={() => setShowCustomForm(false)} class="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-2 rounded hover:bg-gray-400 dark:hover:bg-gray-500">{t('cancel')}</button>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* LISTE GEGESSENER DINGE */}
                         <div>
                             <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
                                 <h2 class="text-lg font-bold">
-                                    {selectedDate === getTodayStr() ? "Heute gegessen" : selectedDate === getYesterdayStr() ? "Gestern gegessen" : `Am ${displayDateLabel()} gegessen`}
+                                    {selectedDate === getTodayStr() ? t('eatenToday') : selectedDate === getYesterdayStr() ? t('eatenYesterday') : `${t('eatenOn')} ${displayDateLabel()}`}
                                 </h2>
                             </div>
                             
                             {currentDayFoods.length === 0 ? (
-                                <p class="text-gray-500 dark:text-gray-400 text-center py-4">Noch nichts getrackt.</p>
+                                <p class="text-gray-500 dark:text-gray-400 text-center py-4">{t('nothingTracked')}</p>
                             ) : (
                                 <ul>
                                     {currentDayFoods.map((food, index) => (
