@@ -32,8 +32,6 @@
             // --- BASIS STATE ---
             const initialConfig = JSON.parse(localStorage.getItem('isConfigured')) || false;
             const [isConfigured, setIsConfigured] = React.useState(initialConfig);
-            
-            // NAVIGATION ('tracker', 'settings', 'profile')
             const [currentView, setCurrentView] = React.useState(initialConfig ? 'tracker' : 'profile');
 
             // --- EINSTELLUNGEN STATE ---
@@ -51,13 +49,6 @@
             const [history, setHistory] = React.useState(() => {
                 const saved = localStorage.getItem('foodHistory');
                 if (saved) return JSON.parse(saved);
-                const oldFoods = localStorage.getItem('consumedFoods');
-                if (oldFoods) {
-                    try {
-                        const parsed = JSON.parse(oldFoods);
-                        if (Array.isArray(parsed) && parsed.length > 0) return { [getTodayStr()]: parsed };
-                    } catch(e) {}
-                }
                 return {};
             });
 
@@ -99,10 +90,10 @@
                 
                 setCalorieGoal(finalGoal);
                 setIsConfigured(true);
-                setCurrentView('tracker'); // Nach dem Speichern zurück zum Tracker
+                setCurrentView('tracker'); 
             };
 
-            // API Suche und Hinzufügen (vereinfacht im Code, Logik identisch)
+            // API Suche und Hinzufügen
             const searchFood = async () => {
                 if (!searchTerm) return;
                 setIsLoading(true);
@@ -149,6 +140,17 @@
                 setHistory(newHistory);
             };
 
+            // Datums-Wechsel sicher machen
+            const handleDateChange = (e) => {
+                const chosenDate = e.target.value;
+                if (chosenDate > getTodayStr()) {
+                    alert("Du kannst nicht in der Zukunft tracken!");
+                    setSelectedDate(getTodayStr());
+                } else {
+                    setSelectedDate(chosenDate);
+                }
+            };
+
             // Text-Formatierungen
             const currentDayFoods = history[selectedDate] || [];
             const totalConsumed = currentDayFoods.reduce((sum, food) => sum + food.calories, 0);
@@ -179,8 +181,6 @@
                                 <span class="flex items-center gap-3"><span class="text-xl">👤</span> Profil & Ziele</span>
                                 <span class="text-gray-400">&rarr;</span>
                             </button>
-                            
-                            {/* Platzhalter für später */}
                             <div class="w-full bg-gray-50 p-4 rounded-xl text-left text-gray-400 font-semibold border border-dashed border-gray-300 flex items-center gap-3">
                                 <span class="text-xl">⚙️</span> Weitere Features folgen...
                             </div>
@@ -243,8 +243,17 @@
                         <div class="flex justify-between items-center mb-6">
                             <h1 class="text-2xl font-bold">Mein Tracker</h1>
                             
-                            {/* Oben Rechts: Kalender & Einstellungen */}
                             <div class="flex gap-2 items-stretch">
+                                {/* Schneller "Heute"-Button (nur sichtbar, wenn wir in der Vergangenheit sind) */}
+                                {selectedDate !== getTodayStr() && (
+                                    <button 
+                                        onClick={() => setSelectedDate(getTodayStr())}
+                                        class="bg-blue-500 px-3 py-2 rounded-lg text-sm font-semibold border border-white/30 hover:bg-blue-400 transition"
+                                    >
+                                        Heute
+                                    </button>
+                                )}
+
                                 {/* Datumsauswahl */}
                                 <div class="relative bg-white/20 px-3 py-2 rounded-lg text-sm font-semibold flex items-center border border-white/30 hover:bg-white/30 transition cursor-pointer">
                                     <label htmlFor="datePicker" class="cursor-pointer flex items-center gap-2 w-full h-full">
@@ -253,9 +262,8 @@
                                     <input 
                                         id="datePicker"
                                         type="date" 
-                                        max={getTodayStr()}
                                         value={selectedDate}
-                                        onChange={(e) => setSelectedDate(e.target.value)}
+                                        onChange={handleDateChange}
                                         class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                     />
                                 </div>
