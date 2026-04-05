@@ -15,57 +15,160 @@
 
     <script type="text/babel">
         function App() {
-            // States (Zustände) unserer App
+            // --- EINSTELLUNGEN STATE ---
+            const [isConfigured, setIsConfigured] = React.useState(false);
+            const [gender, setGender] = React.useState('male');
+            const [age, setAge] = React.useState('');
+            const [weight, setWeight] = React.useState('');
+            const [height, setHeight] = React.useState('');
+            const [activity, setActivity] = React.useState('1.2'); 
+            const [goal, setGoal] = React.useState('lose');
+            const [rate, setRate] = React.useState('0.5');
+
+            // --- TRACKER STATE ---
+            const [calorieGoal, setCalorieGoal] = React.useState(0);
             const [searchTerm, setSearchTerm] = React.useState('');
             const [searchResults, setSearchResults] = React.useState([]);
             const [isLoading, setIsLoading] = React.useState(false);
             const [consumedFoods, setConsumedFoods] = React.useState([]);
-            
-            // Dein tägliches Ziel (kann später anpassbar gemacht werden)
-            const calorieGoal = 2000;
 
-            // Berechne die bisher gegessenen Kalorien
-            const totalConsumed = consumedFoods.reduce((sum, food) => sum + food.calories, 0);
-            const remainingCalories = calorieGoal - totalConsumed;
+            // --- MANUELLE EINGABE STATE ---
+            const [showCustomForm, setShowCustomForm] = React.useState(false);
+            const [customName, setCustomName] = React.useState('');
+            const [customKcal, setCustomKcal] = React.useState('');
+            const [customAmount, setCustomAmount] = React.useState('');
 
-            // Funktion zum Suchen von Lebensmitteln über Open Food Facts
+            // Bedarf berechnen
+            const calculateNeeds = () => {
+                if(!age || !weight || !height) return alert("Bitte Alter, Gewicht und Größe ausfüllen!");
+                let bmr = (10 * parseFloat(weight)) + (6.25 * parseFloat(height)) - (5 * parseInt(age));
+                bmr = gender === 'male' ? bmr + 5 : bmr - 161;
+                let tdee = bmr * parseFloat(activity);
+                let adjustment = 0;
+                if(goal === 'lose') adjustment = rate === '0.5' ? -500 : -1000;
+                else if (goal === 'gain') adjustment = rate === '0.5' ? 500 : 1000;
+                let finalGoal = Math.round(tdee + adjustment);
+                if(gender === 'female' && finalGoal < 1200) finalGoal = 1200;
+                if(gender === 'male' && finalGoal < 1500) finalGoal = 1500;
+                setCalorieGoal(finalGoal);
+                setIsConfigured(true);
+            };
+
+            // API Suche
             const searchFood = async () => {
                 if (!searchTerm) return;
                 setIsLoading(true);
                 try {
                     const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${searchTerm}&search_simple=1&action=process&json=1&page_size=5`);
                     const data = await response.json();
-                    
-                    // Wir filtern die Ergebnisse, um nur die mit Namen und Kalorien anzuzeigen
                     const formattedResults = data.products
                         .filter(p => p.product_name && p.nutriments && p.nutriments['energy-kcal_100g'])
                         .map(p => ({
-                            id: p.id,
                             name: p.product_name,
                             brand: p.brands || 'Unbekannt',
-                            calories: p.nutriments['energy-kcal_100g']
+                            caloriesPer100: Math.round(p.nutriments['energy-kcal_100g'])
                         }));
-                    
                     setSearchResults(formattedResults);
                 } catch (error) {
                     console.error("Fehler bei der Suche:", error);
-                    alert("Suche fehlgeschlagen.");
                 }
                 setIsLoading(false);
             };
 
-            // Funktion um ein Lebensmittel hinzuzufügen
-            const addFood = (food) => {
-                setConsumedFoods([...consumedFoods, food]);
-                setSearchResults([]); // Suchergebnisse leeren
-                setSearchTerm('');    // Suchfeld leeren
+            // API Lebensmittel hinzufügen (mit Gramm-Abfrage)
+            const addApiFood = (food) => {
+                const amountStr = window.prompt(`Wie viel Gramm von "${food.name}" hast du gegessen?`, "100");
+                if (amountStr === null) return; // Abbrechen gedrückt
+                
+                const amount = parseFloat(amountStr);
+                if (isNaN(amount) || amount <= 0) return alert("Bitte eine gültige Zahl eingeben!");
+
+                const calculatedCalories = Math.round((food.caloriesPer100 / 100) * amount);
+                
+                setConsumedFoods([...consumedFoods, { name: food.name, amount: amount, calories: calculatedCalories }]);
+                setSearchResults([]); 
+                setSearchTerm('');    
             };
 
+            // Manuelles Lebensmittel hinzufügen
+            const addCustomFood = () => {
+                if(!customName || !customKcal || !customAmount) return alert("Bitte alle Felder ausfüllen!");
+                const kcal = parseFloat(customKcal);
+                const amount = parseFloat(customAmount);
+                
+                const calculatedCalories = Math.round((kcal / 100) * amount);
+                setConsumedFoods([...consumedFoods, { name: customName, amount: amount, calories: calculatedCalories }]);
+                
+                // Formular zurücksetzen und schließen
+                setCustomName(''); setCustomKcal(''); setCustomAmount('');
+                setShowCustomForm(false);
+            };
+
+            // Lebensmittel entfernen
+            const removeFood = (indexToRemove) => {
+                const newFoods = consumedFoods.filter((_, index) => index !== indexToRemove);
+                setConsumedFoods(newFoods);
+            };
+
+            // Tag zurücksetzen
+            const resetDay = () => {
+                if(window.confirm("Möchtest du wirklich einen neuen Tag starten und alle heutigen Einträge löschen?")) {
+                    setConsumedFoods([]);
+                }
+            };
+
+            const totalConsumed = consumedFoods.reduce((sum, food) => sum + food.calories, 0);
+            const remainingCalories = calorieGoal - totalConsumed;
+
+            // === UI: EINSTELLUNGEN SCREEN ===
+            if (!isConfigured) {
+                return (
+                    <div class="max-w-md mx-auto bg-white min-h-screen p-6 shadow-lg">
+                        <h1 class="text-2xl font-bold mb-6 text-blue-600">Dein Profil</h1>
+                        <p class="text-sm text-gray-500 mb-6">Wir berechnen deinen wissenschaftlich genauen Kalorienbedarf.</p>
+                        <div class="space-y-4">
+                            <select value={gender} onChange={e => setGender(e.target.value)} class="w-full p-3 border rounded-lg">
+                                <option value="male">Männlich</option>
+                                <option value="female">Weiblich</option>
+                            </select>
+                            <div class="flex gap-2">
+                                <input type="number" placeholder="Alter (Jahre)" value={age} onChange={e => setAge(e.target.value)} class="w-full p-3 border rounded-lg" />
+                                <input type="number" placeholder="Gewicht (kg)" value={weight} onChange={e => setWeight(e.target.value)} class="w-full p-3 border rounded-lg" />
+                            </div>
+                            <input type="number" placeholder="Größe (cm)" value={height} onChange={e => setHeight(e.target.value)} class="w-full p-3 border rounded-lg" />
+                            <select value={activity} onChange={e => setActivity(e.target.value)} class="w-full p-3 border rounded-lg">
+                                <option value="1.2">Bürojob / kaum Bewegung</option>
+                                <option value="1.375">Leicht aktiv (1-3x Sport/Woche)</option>
+                                <option value="1.55">Moderat aktiv (3-5x Sport/Woche)</option>
+                                <option value="1.725">Sehr aktiv (täglich Sport/körperl. Arbeit)</option>
+                            </select>
+                            <select value={goal} onChange={e => setGoal(e.target.value)} class="w-full p-3 border rounded-lg">
+                                <option value="lose">Abnehmen</option>
+                                <option value="maintain">Gewicht halten</option>
+                                <option value="gain">Zunehmen</option>
+                            </select>
+                            {goal !== 'maintain' && (
+                                <select value={rate} onChange={e => setRate(e.target.value)} class="w-full p-3 border rounded-lg">
+                                    <option value="0.5">0,5 kg pro Woche</option>
+                                    <option value="1.0">1,0 kg pro Woche (Intensiv)</option>
+                                </select>
+                            )}
+                            <button onClick={calculateNeeds} class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition mt-4">
+                                Bedarf berechnen & Starten
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // === UI: TRACKER SCREEN ===
             return (
-                <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg">
-                    {/* Header Sektion */}
+                <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg pb-10">
                     <div class="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md">
-                        <h1 class="text-2xl font-bold text-center mb-4">Mein Tracker</h1>
+                        <div class="flex justify-between items-center mb-4">
+                            <h1 class="text-2xl font-bold">Mein Tracker</h1>
+                            <button onClick={() => setIsConfigured(false)} class="text-sm underline">Profil ändern</button>
+                        </div>
                         
                         <div class="flex justify-between items-center bg-white/20 p-4 rounded-xl">
                             <div class="text-center">
@@ -84,61 +187,78 @@
                     </div>
 
                     <div class="p-6">
-                        {/* Suchbereich */}
-                        <div class="mb-6">
+                        {/* SUCHE */}
+                        <div class="mb-4">
                             <h2 class="text-lg font-bold mb-2">Mahlzeit tracken</h2>
                             <div class="flex gap-2">
-                                <input 
-                                    type="text" 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    placeholder="z.B. Coca Cola..."
-                                    class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                                    onKeyDown={(e) => e.key === 'Enter' && searchFood()}
-                                />
-                                <button 
-                                    onClick={searchFood}
-                                    class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition"
-                                >
-                                    Suchen
-                                </button>
+                                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Datenbank durchsuchen..." class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" onKeyDown={e => e.key === 'Enter' && searchFood()} />
+                                <button onClick={searchFood} class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition">Suchen</button>
                             </div>
                         </div>
 
-                        {/* Lade-Indikator */}
+                        {/* LADE INDIKATOR & SUCHGEBNISSE */}
                         {isLoading && <p class="text-center text-gray-500 my-4">Suche läuft...</p>}
-
-                        {/* Suchergebnisse */}
                         {searchResults.length > 0 && (
-                            <div class="mb-8 border border-gray-200 rounded-lg overflow-hidden">
+                            <div class="mb-6 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
                                 {searchResults.map((food, index) => (
                                     <div key={index} class="flex justify-between items-center p-3 bg-gray-50 border-b last:border-b-0">
                                         <div>
                                             <p class="font-bold">{food.name}</p>
-                                            <p class="text-sm text-gray-500">{food.brand} • {food.calories} kcal / 100g</p>
+                                            <p class="text-sm text-gray-500">{food.brand} • {food.caloriesPer100} kcal / 100g</p>
                                         </div>
-                                        <button 
-                                            onClick={() => addFood(food)}
-                                            class="bg-green-500 text-white px-3 py-1 rounded-full text-sm hover:bg-green-600"
-                                        >
-                                            +
-                                        </button>
+                                        <button onClick={() => addApiFood(food)} class="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-green-600">+</button>
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        {/* Liste der gegessenen Dinge */}
+                        {/* MANUELLE EINGABE (CUSTOM) */}
+                        <div class="mb-8">
+                            {!showCustomForm ? (
+                                <button onClick={() => setShowCustomForm(true)} class="text-blue-600 text-sm font-semibold hover:underline">
+                                    + Produkt nicht gefunden? Manuell eintragen
+                                </button>
+                            ) : (
+                                <div class="bg-gray-50 p-4 rounded-lg border shadow-inner">
+                                    <h3 class="font-bold mb-3 text-gray-700">Eigenes Produkt</h3>
+                                    <div class="space-y-2 mb-3">
+                                        <input type="text" placeholder="Name des Essens" value={customName} onChange={e => setCustomName(e.target.value)} class="w-full p-2 border rounded" />
+                                        <div class="flex gap-2">
+                                            <input type="number" placeholder="Kcal pro 100g" value={customKcal} onChange={e => setCustomKcal(e.target.value)} class="w-full p-2 border rounded" />
+                                            <input type="number" placeholder="Menge in g" value={customAmount} onChange={e => setCustomAmount(e.target.value)} class="w-full p-2 border rounded" />
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button onClick={addCustomFood} class="flex-1 bg-green-500 text-white font-bold py-2 rounded hover:bg-green-600">Speichern</button>
+                                        <button onClick={() => setShowCustomForm(false)} class="flex-1 bg-gray-300 text-gray-700 font-bold py-2 rounded hover:bg-gray-400">Abbrechen</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* LISTE GEGESSENER DINGE */}
                         <div>
-                            <h2 class="text-lg font-bold mb-3 border-b pb-2">Heute gegessen</h2>
+                            <div class="flex justify-between items-center border-b pb-2 mb-3">
+                                <h2 class="text-lg font-bold">Heute gegessen</h2>
+                                {consumedFoods.length > 0 && (
+                                    <button onClick={resetDay} class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200">Neuer Tag</button>
+                                )}
+                            </div>
+                            
                             {consumedFoods.length === 0 ? (
                                 <p class="text-gray-500 text-center py-4">Noch nichts getrackt. Fang an!</p>
                             ) : (
                                 <ul>
                                     {consumedFoods.map((food, index) => (
-                                        <li key={index} class="flex justify-between py-3 border-b border-gray-100">
-                                            <span>{food.name} (100g)</span>
-                                            <span class="font-bold">{food.calories} kcal</span>
+                                        <li key={index} class="flex justify-between items-center py-3 border-b border-gray-100">
+                                            <div>
+                                                <p class="font-semibold">{food.name}</p>
+                                                <p class="text-xs text-gray-500">{food.amount}g</p>
+                                            </div>
+                                            <div class="flex items-center gap-4">
+                                                <span class="font-bold text-red-500">{food.calories} kcal</span>
+                                                <button onClick={() => removeFood(index)} class="text-gray-400 hover:text-red-500 text-xl font-bold">&times;</button>
+                                            </div>
                                         </li>
                                     ))}
                                 </ul>
