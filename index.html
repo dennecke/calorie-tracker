@@ -14,10 +14,29 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // Hilfsfunktionen für das Datum
+        const getTodayStr = () => {
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            return new Date(now.getTime() - offset).toISOString().split('T')[0];
+        };
+
+        const getYesterdayStr = () => {
+            const d = new Date();
+            d.setDate(d.getDate() - 1);
+            const offset = d.getTimezoneOffset() * 60000;
+            return new Date(d.getTime() - offset).toISOString().split('T')[0];
+        };
+
         function App() {
-            // --- STATE MIT LOCALSTORAGE INITIALISIERUNG ---
-            // Die App schaut beim Start im Speicher nach. Wenn nichts da ist, nimmt sie die Standardwerte.
-            const [isConfigured, setIsConfigured] = React.useState(() => JSON.parse(localStorage.getItem('isConfigured')) || false);
+            // --- BASIS STATE ---
+            const initialConfig = JSON.parse(localStorage.getItem('isConfigured')) || false;
+            const [isConfigured, setIsConfigured] = React.useState(initialConfig);
+            
+            // NAVIGATION ('tracker', 'settings', 'profile')
+            const [currentView, setCurrentView] = React.useState(initialConfig ? 'tracker' : 'profile');
+
+            // --- EINSTELLUNGEN STATE ---
             const [gender, setGender] = React.useState(() => localStorage.getItem('gender') || 'male');
             const [age, setAge] = React.useState(() => localStorage.getItem('age') || '');
             const [weight, setWeight] = React.useState(() => localStorage.getItem('weight') || '');
@@ -25,11 +44,24 @@
             const [activity, setActivity] = React.useState(() => localStorage.getItem('activity') || '1.2'); 
             const [goal, setGoal] = React.useState(() => localStorage.getItem('goal') || 'lose');
             const [rate, setRate] = React.useState(() => localStorage.getItem('rate') || '0.5');
-            
             const [calorieGoal, setCalorieGoal] = React.useState(() => JSON.parse(localStorage.getItem('calorieGoal')) || 0);
-            const [consumedFoods, setConsumedFoods] = React.useState(() => JSON.parse(localStorage.getItem('consumedFoods')) || []);
 
-            // --- TEMPORÄRE STATES (müssen nicht gespeichert werden) ---
+            // --- DATUM & HISTORIE STATE ---
+            const [selectedDate, setSelectedDate] = React.useState(getTodayStr());
+            const [history, setHistory] = React.useState(() => {
+                const saved = localStorage.getItem('foodHistory');
+                if (saved) return JSON.parse(saved);
+                const oldFoods = localStorage.getItem('consumedFoods');
+                if (oldFoods) {
+                    try {
+                        const parsed = JSON.parse(oldFoods);
+                        if (Array.isArray(parsed) && parsed.length > 0) return { [getTodayStr()]: parsed };
+                    } catch(e) {}
+                }
+                return {};
+            });
+
+            // --- TEMPORÄRE STATES ---
             const [searchTerm, setSearchTerm] = React.useState('');
             const [searchResults, setSearchResults] = React.useState([]);
             const [isLoading, setIsLoading] = React.useState(false);
@@ -39,7 +71,6 @@
             const [customAmount, setCustomAmount] = React.useState('');
 
             // --- AUTOMATISCHES SPEICHERN ---
-            // Sobald sich einer dieser Werte ändert, wird er im LocalStorage deines Handys gesichert
             React.useEffect(() => {
                 localStorage.setItem('isConfigured', JSON.stringify(isConfigured));
                 localStorage.setItem('gender', gender);
@@ -50,8 +81,8 @@
                 localStorage.setItem('goal', goal);
                 localStorage.setItem('rate', rate);
                 localStorage.setItem('calorieGoal', JSON.stringify(calorieGoal));
-                localStorage.setItem('consumedFoods', JSON.stringify(consumedFoods));
-            }, [isConfigured, gender, age, weight, height, activity, goal, rate, calorieGoal, consumedFoods]);
+                localStorage.setItem('foodHistory', JSON.stringify(history));
+            }, [isConfigured, gender, age, weight, height, activity, goal, rate, calorieGoal, history]);
 
             // Bedarf berechnen
             const calculateNeeds = () => {
@@ -68,9 +99,10 @@
                 
                 setCalorieGoal(finalGoal);
                 setIsConfigured(true);
+                setCurrentView('tracker'); // Nach dem Speichern zurück zum Tracker
             };
 
-            // API Suche
+            // API Suche und Hinzufügen (vereinfacht im Code, Logik identisch)
             const searchFood = async () => {
                 if (!searchTerm) return;
                 setIsLoading(true);
@@ -85,59 +117,90 @@
                             caloriesPer100: Math.round(p.nutriments['energy-kcal_100g'])
                         }));
                     setSearchResults(formattedResults);
-                } catch (error) {
-                    console.error("Fehler bei der Suche:", error);
-                }
+                } catch (error) { console.error(error); }
                 setIsLoading(false);
             };
 
-            // API Lebensmittel hinzufügen
+            const addFoodToDate = (foodItem) => {
+                const newHistory = { ...history };
+                const dayFoods = newHistory[selectedDate] || [];
+                newHistory[selectedDate] = [...dayFoods, foodItem];
+                setHistory(newHistory);
+            };
+
             const addApiFood = (food) => {
                 const amountStr = window.prompt(`Wie viel Gramm von "${food.name}" hast du gegessen?`, "100");
                 if (amountStr === null) return; 
                 const amount = parseFloat(amountStr);
                 if (isNaN(amount) || amount <= 0) return alert("Bitte eine gültige Zahl eingeben!");
-
-                const calculatedCalories = Math.round((food.caloriesPer100 / 100) * amount);
-                setConsumedFoods([...consumedFoods, { name: food.name, amount: amount, calories: calculatedCalories }]);
-                setSearchResults([]); 
-                setSearchTerm('');    
+                addFoodToDate({ name: food.name, amount: amount, calories: Math.round((food.caloriesPer100 / 100) * amount) });
+                setSearchResults([]); setSearchTerm('');    
             };
 
-            // Manuelles Lebensmittel hinzufügen
             const addCustomFood = () => {
                 if(!customName || !customKcal || !customAmount) return alert("Bitte alle Felder ausfüllen!");
-                const kcal = parseFloat(customKcal);
-                const amount = parseFloat(customAmount);
-                const calculatedCalories = Math.round((kcal / 100) * amount);
-                
-                setConsumedFoods([...consumedFoods, { name: customName, amount: amount, calories: calculatedCalories }]);
-                setCustomName(''); setCustomKcal(''); setCustomAmount('');
-                setShowCustomForm(false);
+                addFoodToDate({ name: customName, amount: parseFloat(customAmount), calories: Math.round((parseFloat(customKcal) / 100) * parseFloat(customAmount)) });
+                setCustomName(''); setCustomKcal(''); setCustomAmount(''); setShowCustomForm(false);
             };
 
-            // Lebensmittel entfernen
-            const removeFood = (indexToRemove) => {
-                const newFoods = consumedFoods.filter((_, index) => index !== indexToRemove);
-                setConsumedFoods(newFoods);
+            const removeFoodFromDate = (indexToRemove) => {
+                const newHistory = { ...history };
+                newHistory[selectedDate] = (newHistory[selectedDate] || []).filter((_, index) => index !== indexToRemove);
+                setHistory(newHistory);
             };
 
-            // Tag zurücksetzen
-            const resetDay = () => {
-                if(window.confirm("Möchtest du wirklich einen neuen Tag starten und alle heutigen Einträge löschen?")) {
-                    setConsumedFoods([]);
-                }
-            };
-
-            const totalConsumed = consumedFoods.reduce((sum, food) => sum + food.calories, 0);
+            // Text-Formatierungen
+            const currentDayFoods = history[selectedDate] || [];
+            const totalConsumed = currentDayFoods.reduce((sum, food) => sum + food.calories, 0);
             const remainingCalories = calorieGoal - totalConsumed;
 
-            // === UI: EINSTELLUNGEN SCREEN ===
-            if (!isConfigured) {
+            const displayDateLabel = () => {
+                if (selectedDate === getTodayStr()) return "Heute";
+                if (selectedDate === getYesterdayStr()) return "Gestern";
+                return new Date(selectedDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            };
+
+            const displayHeadingText = () => {
+                if (selectedDate === getTodayStr()) return "Heute gegessen";
+                if (selectedDate === getYesterdayStr()) return "Gestern gegessen";
+                return `Am ${displayDateLabel()} gegessen`;
+            };
+
+            // === UI: EINSTELLUNGEN ÜBERSICHT ===
+            if (currentView === 'settings') {
+                return (
+                    <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg">
+                        <div class="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md flex items-center gap-4">
+                            <button onClick={() => setCurrentView('tracker')} class="text-3xl font-bold hover:text-gray-200 transition">&larr;</button>
+                            <h1 class="text-2xl font-bold">Einstellungen</h1>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <button onClick={() => setCurrentView('profile')} class="w-full bg-gray-50 p-4 border border-gray-200 rounded-xl text-left font-semibold hover:bg-gray-100 transition flex justify-between items-center shadow-sm">
+                                <span class="flex items-center gap-3"><span class="text-xl">👤</span> Profil & Ziele</span>
+                                <span class="text-gray-400">&rarr;</span>
+                            </button>
+                            
+                            {/* Platzhalter für später */}
+                            <div class="w-full bg-gray-50 p-4 rounded-xl text-left text-gray-400 font-semibold border border-dashed border-gray-300 flex items-center gap-3">
+                                <span class="text-xl">⚙️</span> Weitere Features folgen...
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // === UI: PROFIL & ZIELE SCREEN ===
+            if (currentView === 'profile') {
                 return (
                     <div class="max-w-md mx-auto bg-white min-h-screen p-6 shadow-lg">
-                        <h1 class="text-2xl font-bold mb-6 text-blue-600">Dein Profil</h1>
+                        {isConfigured && (
+                            <button onClick={() => setCurrentView('settings')} class="mb-6 text-gray-500 hover:text-blue-600 font-bold flex items-center gap-2">
+                                <span>&larr;</span> Zurück
+                            </button>
+                        )}
+                        <h1 class="text-2xl font-bold mb-2 text-blue-600">Dein Profil</h1>
                         <p class="text-sm text-gray-500 mb-6">Wir berechnen deinen wissenschaftlich genauen Kalorienbedarf.</p>
+                        
                         <div class="space-y-4">
                             <select value={gender} onChange={e => setGender(e.target.value)} class="w-full p-3 border rounded-lg">
                                 <option value="male">Männlich</option>
@@ -177,9 +240,34 @@
             return (
                 <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg pb-10">
                     <div class="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md">
-                        <div class="flex justify-between items-center mb-4">
+                        <div class="flex justify-between items-center mb-6">
                             <h1 class="text-2xl font-bold">Mein Tracker</h1>
-                            <button onClick={() => setIsConfigured(false)} class="text-sm underline">Profil ändern</button>
+                            
+                            {/* Oben Rechts: Kalender & Einstellungen */}
+                            <div class="flex gap-2 items-stretch">
+                                {/* Datumsauswahl */}
+                                <div class="relative bg-white/20 px-3 py-2 rounded-lg text-sm font-semibold flex items-center border border-white/30 hover:bg-white/30 transition cursor-pointer">
+                                    <label htmlFor="datePicker" class="cursor-pointer flex items-center gap-2 w-full h-full">
+                                        📅 {displayDateLabel()}
+                                    </label>
+                                    <input 
+                                        id="datePicker"
+                                        type="date" 
+                                        max={getTodayStr()}
+                                        value={selectedDate}
+                                        onChange={(e) => setSelectedDate(e.target.value)}
+                                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    />
+                                </div>
+                                
+                                {/* Zahnrad */}
+                                <button 
+                                    onClick={() => setCurrentView('settings')}
+                                    class="bg-white/20 px-3 py-2 rounded-lg text-lg border border-white/30 hover:bg-white/30 transition flex items-center justify-center"
+                                >
+                                    ⚙️
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="flex justify-between items-center bg-white/20 p-4 rounded-xl">
@@ -201,14 +289,14 @@
                     <div class="p-6">
                         {/* SUCHE */}
                         <div class="mb-4">
-                            <h2 class="text-lg font-bold mb-2">Mahlzeit tracken</h2>
+                            <h2 class="text-lg font-bold mb-2">Mahlzeit hinzufügen</h2>
                             <div class="flex gap-2">
                                 <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Datenbank durchsuchen..." class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" onKeyDown={e => e.key === 'Enter' && searchFood()} />
                                 <button onClick={searchFood} class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition">Suchen</button>
                             </div>
                         </div>
 
-                        {/* LADE INDIKATOR & SUCHGEBNISSE */}
+                        {/* SUCHGEBNISSE */}
                         {isLoading && <p class="text-center text-gray-500 my-4">Suche läuft...</p>}
                         {searchResults.length > 0 && (
                             <div class="mb-6 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
@@ -224,7 +312,7 @@
                             </div>
                         )}
 
-                        {/* MANUELLE EINGABE (CUSTOM) */}
+                        {/* MANUELLE EINGABE */}
                         <div class="mb-8">
                             {!showCustomForm ? (
                                 <button onClick={() => setShowCustomForm(true)} class="text-blue-600 text-sm font-semibold hover:underline">
@@ -251,17 +339,14 @@
                         {/* LISTE GEGESSENER DINGE */}
                         <div>
                             <div class="flex justify-between items-center border-b pb-2 mb-3">
-                                <h2 class="text-lg font-bold">Heute gegessen</h2>
-                                {consumedFoods.length > 0 && (
-                                    <button onClick={resetDay} class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200">Neuer Tag</button>
-                                )}
+                                <h2 class="text-lg font-bold">{displayHeadingText()}</h2>
                             </div>
                             
-                            {consumedFoods.length === 0 ? (
-                                <p class="text-gray-500 text-center py-4">Noch nichts getrackt. Fang an!</p>
+                            {currentDayFoods.length === 0 ? (
+                                <p class="text-gray-500 text-center py-4">Noch nichts getrackt.</p>
                             ) : (
                                 <ul>
-                                    {consumedFoods.map((food, index) => (
+                                    {currentDayFoods.map((food, index) => (
                                         <li key={index} class="flex justify-between items-center py-3 border-b border-gray-100">
                                             <div>
                                                 <p class="font-semibold">{food.name}</p>
@@ -269,7 +354,7 @@
                                             </div>
                                             <div class="flex items-center gap-4">
                                                 <span class="font-bold text-red-500">{food.calories} kcal</span>
-                                                <button onClick={() => removeFood(index)} class="text-gray-400 hover:text-red-500 text-xl font-bold">&times;</button>
+                                                <button onClick={() => removeFoodFromDate(index)} class="text-gray-400 hover:text-red-500 text-xl font-bold">&times;</button>
                                             </div>
                                         </li>
                                     ))}
