@@ -6,7 +6,6 @@
     <title>Mein Kalorien Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Wir aktivieren die Dark-Mode Unterstützung für Tailwind
         tailwind.config = {
             darkMode: 'class',
         }
@@ -35,11 +34,10 @@
         };
 
         function App() {
-            // --- THEME STATE (Dark / Light Mode) ---
+            // --- THEME STATE ---
             const [theme, setTheme] = React.useState(() => localStorage.getItem('theme') || 'light');
 
             React.useEffect(() => {
-                // Tailwind Dark Mode Klasse anwenden
                 if (theme === 'dark') {
                     document.documentElement.classList.add('dark');
                     document.body.classList.add('bg-gray-900');
@@ -55,6 +53,7 @@
             // --- BASIS STATE ---
             const initialConfig = JSON.parse(localStorage.getItem('isConfigured')) || false;
             const [isConfigured, setIsConfigured] = React.useState(initialConfig);
+            // Neue Ansicht 'custom_db' hinzugefügt
             const [currentView, setCurrentView] = React.useState(initialConfig ? 'tracker' : 'profile');
 
             // --- EINSTELLUNGEN STATE ---
@@ -69,7 +68,7 @@
 
             // --- EIGENE DATENBANK STATE ---
             const [customDb, setCustomDb] = React.useState(() => JSON.parse(localStorage.getItem('customDb')) || []);
-            const [saveToDb, setSaveToDb] = React.useState(true); // Häkchen standardmäßig an
+            const [saveToDb, setSaveToDb] = React.useState(true);
 
             // --- DATUM & HISTORIE STATE ---
             const [selectedDate, setSelectedDate] = React.useState(getTodayStr());
@@ -121,18 +120,16 @@
                 setCurrentView('tracker'); 
             };
 
-            // COMBINED SEARCH (Eigene Datenbank + API)
+            // COMBINED SEARCH
             const searchFood = async () => {
                 if (!searchTerm) return;
                 setIsLoading(true);
 
-                // 1. Zuerst in der eigenen lokalen Datenbank suchen
                 const localMatches = customDb
                     .filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                    .map(f => ({ ...f, isCustom: true })); // Markieren als eigenes Lebensmittel
+                    .map(f => ({ ...f, isCustom: true }));
 
                 try {
-                    // 2. Dann die API durchsuchen
                     const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${searchTerm}&search_simple=1&action=process&json=1&page_size=5`);
                     const data = await response.json();
                     const apiResults = data.products
@@ -144,11 +141,9 @@
                             isCustom: false
                         }));
                     
-                    // Beide Ergebnisse kombinieren (Eigene zuerst)
                     setSearchResults([...localMatches, ...apiResults]);
                 } catch (error) { 
                     console.error(error); 
-                    // Wenn kein Internet, zeige wenigstens die lokalen Ergebnisse
                     setSearchResults(localMatches);
                 }
                 setIsLoading(false);
@@ -175,10 +170,8 @@
                 const kcal = parseFloat(customKcal);
                 const amount = parseFloat(customAmount);
                 
-                // In den Tracker aufnehmen
                 addFoodToDate({ name: customName, amount: amount, calories: Math.round((kcal / 100) * amount) });
                 
-                // In der eigenen Datenbank speichern (falls gewünscht und nicht schon vorhanden)
                 if (saveToDb) {
                     const alreadyExists = customDb.some(f => f.name.toLowerCase() === customName.toLowerCase());
                     if (!alreadyExists) {
@@ -193,6 +186,14 @@
                 const newHistory = { ...history };
                 newHistory[selectedDate] = (newHistory[selectedDate] || []).filter((_, index) => index !== indexToRemove);
                 setHistory(newHistory);
+            };
+
+            // Eigene Datenbank: Eintrag löschen
+            const deleteCustomDbItem = (indexToRemove) => {
+                if(window.confirm("Möchtest du dieses Lebensmittel wirklich aus deiner Datenbank löschen?")) {
+                    const newDb = customDb.filter((_, index) => index !== indexToRemove);
+                    setCustomDb(newDb);
+                }
             };
 
             const handleDateChange = (e) => {
@@ -231,6 +232,12 @@
                                 <span class="flex items-center gap-3"><span class="text-xl">👤</span> Profil & Ziele</span>
                                 <span class="text-gray-400 dark:text-gray-300">&rarr;</span>
                             </button>
+
+                            {/* Eigene Datenbank Button */}
+                            <button onClick={() => setCurrentView('custom_db')} class="w-full bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600 rounded-xl text-left font-semibold hover:bg-gray-100 dark:hover:bg-gray-600 transition flex justify-between items-center shadow-sm">
+                                <span class="flex items-center gap-3"><span class="text-xl">⭐</span> Eigene Lebensmittel</span>
+                                <span class="text-gray-400 dark:text-gray-300">&rarr;</span>
+                            </button>
                             
                             {/* Dark Mode Toggle */}
                             <div class="w-full bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600 rounded-xl flex justify-between items-center shadow-sm">
@@ -244,6 +251,37 @@
                                 </label>
                             </div>
                         </div>
+                    </div>
+                );
+            }
+
+            // === UI: EIGENE DATENBANK VERWALTEN ===
+            if (currentView === 'custom_db') {
+                return (
+                    <div class="max-w-md mx-auto bg-white dark:bg-gray-800 min-h-screen p-6 shadow-lg transition-colors duration-200 text-gray-800 dark:text-gray-100">
+                        <button onClick={() => setCurrentView('settings')} class="mb-6 text-gray-500 dark:text-gray-400 hover:text-blue-600 font-bold flex items-center gap-2">
+                            <span>&larr;</span> Zurück
+                        </button>
+                        <h1 class="text-2xl font-bold mb-2 text-blue-600 dark:text-blue-400">Eigene Lebensmittel</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Hier verwaltest du deine manuell hinzugefügten Einträge für die schnelle Suche.</p>
+
+                        {customDb.length === 0 ? (
+                            <p class="text-center text-gray-500 dark:text-gray-400 py-10 bg-gray-50 dark:bg-gray-700 rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
+                                Du hast noch keine eigenen Lebensmittel gespeichert.
+                            </p>
+                        ) : (
+                            <div class="space-y-3">
+                                {customDb.map((food, index) => (
+                                    <div key={index} class="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                                        <div>
+                                            <p class="font-bold">{food.name}</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400">{food.caloriesPer100} kcal / 100g</p>
+                                        </div>
+                                        <button onClick={() => deleteCustomDbItem(index)} class="text-red-500 hover:text-red-700 text-2xl font-bold px-2">&times;</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
             }
@@ -368,7 +406,6 @@
                                             <input type="number" placeholder="Menge in g" value={customAmount} onChange={e => setCustomAmount(e.target.value)} class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded" />
                                         </div>
                                         
-                                        {/* Checkbox zum Speichern in der DB */}
                                         <label class="flex items-center gap-2 mt-2 cursor-pointer text-sm text-gray-600 dark:text-gray-300">
                                             <input type="checkbox" checked={saveToDb} onChange={e => setSaveToDb(e.target.checked)} class="w-4 h-4 rounded text-blue-600" />
                                             Für zukünftige Suchen in eigener Datenbank merken
