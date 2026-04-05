@@ -15,28 +15,43 @@
 
     <script type="text/babel">
         function App() {
-            // --- EINSTELLUNGEN STATE ---
-            const [isConfigured, setIsConfigured] = React.useState(false);
-            const [gender, setGender] = React.useState('male');
-            const [age, setAge] = React.useState('');
-            const [weight, setWeight] = React.useState('');
-            const [height, setHeight] = React.useState('');
-            const [activity, setActivity] = React.useState('1.2'); 
-            const [goal, setGoal] = React.useState('lose');
-            const [rate, setRate] = React.useState('0.5');
+            // --- STATE MIT LOCALSTORAGE INITIALISIERUNG ---
+            // Die App schaut beim Start im Speicher nach. Wenn nichts da ist, nimmt sie die Standardwerte.
+            const [isConfigured, setIsConfigured] = React.useState(() => JSON.parse(localStorage.getItem('isConfigured')) || false);
+            const [gender, setGender] = React.useState(() => localStorage.getItem('gender') || 'male');
+            const [age, setAge] = React.useState(() => localStorage.getItem('age') || '');
+            const [weight, setWeight] = React.useState(() => localStorage.getItem('weight') || '');
+            const [height, setHeight] = React.useState(() => localStorage.getItem('height') || '');
+            const [activity, setActivity] = React.useState(() => localStorage.getItem('activity') || '1.2'); 
+            const [goal, setGoal] = React.useState(() => localStorage.getItem('goal') || 'lose');
+            const [rate, setRate] = React.useState(() => localStorage.getItem('rate') || '0.5');
+            
+            const [calorieGoal, setCalorieGoal] = React.useState(() => JSON.parse(localStorage.getItem('calorieGoal')) || 0);
+            const [consumedFoods, setConsumedFoods] = React.useState(() => JSON.parse(localStorage.getItem('consumedFoods')) || []);
 
-            // --- TRACKER STATE ---
-            const [calorieGoal, setCalorieGoal] = React.useState(0);
+            // --- TEMPORÄRE STATES (müssen nicht gespeichert werden) ---
             const [searchTerm, setSearchTerm] = React.useState('');
             const [searchResults, setSearchResults] = React.useState([]);
             const [isLoading, setIsLoading] = React.useState(false);
-            const [consumedFoods, setConsumedFoods] = React.useState([]);
-
-            // --- MANUELLE EINGABE STATE ---
             const [showCustomForm, setShowCustomForm] = React.useState(false);
             const [customName, setCustomName] = React.useState('');
             const [customKcal, setCustomKcal] = React.useState('');
             const [customAmount, setCustomAmount] = React.useState('');
+
+            // --- AUTOMATISCHES SPEICHERN ---
+            // Sobald sich einer dieser Werte ändert, wird er im LocalStorage deines Handys gesichert
+            React.useEffect(() => {
+                localStorage.setItem('isConfigured', JSON.stringify(isConfigured));
+                localStorage.setItem('gender', gender);
+                localStorage.setItem('age', age);
+                localStorage.setItem('weight', weight);
+                localStorage.setItem('height', height);
+                localStorage.setItem('activity', activity);
+                localStorage.setItem('goal', goal);
+                localStorage.setItem('rate', rate);
+                localStorage.setItem('calorieGoal', JSON.stringify(calorieGoal));
+                localStorage.setItem('consumedFoods', JSON.stringify(consumedFoods));
+            }, [isConfigured, gender, age, weight, height, activity, goal, rate, calorieGoal, consumedFoods]);
 
             // Bedarf berechnen
             const calculateNeeds = () => {
@@ -50,6 +65,7 @@
                 let finalGoal = Math.round(tdee + adjustment);
                 if(gender === 'female' && finalGoal < 1200) finalGoal = 1200;
                 if(gender === 'male' && finalGoal < 1500) finalGoal = 1500;
+                
                 setCalorieGoal(finalGoal);
                 setIsConfigured(true);
             };
@@ -75,16 +91,14 @@
                 setIsLoading(false);
             };
 
-            // API Lebensmittel hinzufügen (mit Gramm-Abfrage)
+            // API Lebensmittel hinzufügen
             const addApiFood = (food) => {
                 const amountStr = window.prompt(`Wie viel Gramm von "${food.name}" hast du gegessen?`, "100");
-                if (amountStr === null) return; // Abbrechen gedrückt
-                
+                if (amountStr === null) return; 
                 const amount = parseFloat(amountStr);
                 if (isNaN(amount) || amount <= 0) return alert("Bitte eine gültige Zahl eingeben!");
 
                 const calculatedCalories = Math.round((food.caloriesPer100 / 100) * amount);
-                
                 setConsumedFoods([...consumedFoods, { name: food.name, amount: amount, calories: calculatedCalories }]);
                 setSearchResults([]); 
                 setSearchTerm('');    
@@ -95,11 +109,9 @@
                 if(!customName || !customKcal || !customAmount) return alert("Bitte alle Felder ausfüllen!");
                 const kcal = parseFloat(customKcal);
                 const amount = parseFloat(customAmount);
-                
                 const calculatedCalories = Math.round((kcal / 100) * amount);
-                setConsumedFoods([...consumedFoods, { name: customName, amount: amount, calories: calculatedCalories }]);
                 
-                // Formular zurücksetzen und schließen
+                setConsumedFoods([...consumedFoods, { name: customName, amount: amount, calories: calculatedCalories }]);
                 setCustomName(''); setCustomKcal(''); setCustomAmount('');
                 setShowCustomForm(false);
             };
@@ -154,7 +166,7 @@
                                 </select>
                             )}
                             <button onClick={calculateNeeds} class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition mt-4">
-                                Bedarf berechnen & Starten
+                                Bedarf berechnen & Speichern
                             </button>
                         </div>
                     </div>
